@@ -1,7 +1,19 @@
 services:
   - type: web
-    name: learnmate-ai
-    runtime: static
-    buildCommand: "echo 'No build step required'"
-    staticPublishPath: .
-    pullRequestPreviewsEnabled: true
+    name: learnmate-ai-fullstack
+    runtime: python
+    plan: free
+    buildCommand: python -m compileall -q learnmate
+    startCommand: python -m learnmate
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: LEARNMATE_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: /opt/render/project/src/data/learnmate.db
+      - key: LLM_PROVIDER
+        value: mock
+      - key: JWT_SECRET
+        generateValue: true
