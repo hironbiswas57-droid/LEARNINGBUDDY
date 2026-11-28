@@ -32,24 +32,37 @@
     if (target) target.innerHTML = 'Sign in to save your questions and join the room. <a href="/workspace?mode=login">Sign in ↗</a>';
   }
 
+  function activateCuriosityTab(name) {
+    document.querySelectorAll('[data-curiosity-tab]').forEach(tab => {
+      const active = tab.dataset.curiosityTab === name;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', String(active));
+      tab.tabIndex = active ? 0 : -1;
+    });
+    document.querySelectorAll('[data-curiosity-panel]').forEach(panel => {
+      panel.hidden = panel.dataset.curiosityPanel !== name;
+    });
+  }
+
   function renderArticles(items) {
     const host = document.getElementById('curiosityArticles');
     if (!host) return;
     if (!items.length) { host.innerHTML = '<p class="curiosity-loading">More field notes are on their way.</p>'; return; }
-    host.innerHTML = items.map(article => {
+    host.innerHTML = items.map((article, index) => {
       const saved = !!article.saved;
       const safeUrl = /^https:\/\//i.test(article.source_url) ? article.source_url : '#';
-      return `<article class="research-entry" data-article="${esc(article.id)}"><div class="research-meta"><span class="research-topic">${esc(article.topic)}</span><span>·</span><span>${esc(article.reading_minutes || 4)} MIN</span></div><h4>${esc(article.title)}</h4><p class="research-hook">${esc(article.hook)}</p><p>${esc(article.summary)}</p><div class="research-actions"><button type="button" data-ask-article="${esc(article.id)}">Ask about this ↗</button><button type="button" class="${saved?'is-saved':''}" aria-pressed="${saved}" data-save-article="${esc(article.id)}">${saved?'♥ Saved':'♡ Save note'}</button><a target="_blank" rel="noopener noreferrer" href="${esc(safeUrl)}" data-read-article="${esc(article.id)}">Original study ↗</a></div><div class="research-meta" style="margin-top:8px">SOURCE / ${esc(article.source_name)}</div></article>`;
+      const glyph = article.topic === 'Animal minds' ? '◉' : article.topic === 'Invention' ? '✳' : '∞';
+      return `<article class="research-entry" data-article="${esc(article.id)}"><div class="research-card-art"><span>FIELD NOTE / ${String(index + 1).padStart(2,'0')}</span><b>${glyph}</b></div><div class="research-meta"><span class="research-topic">${esc(article.topic)}</span><span>·</span><span>${esc(article.reading_minutes || 4)} MIN</span></div><h4>${esc(article.title)}</h4><p class="research-hook">${esc(article.hook)}</p><details><summary>Open the field note</summary><p>${esc(article.summary)}</p><div class="research-meta">SOURCE / ${esc(article.source_name)}</div></details><div class="research-actions"><button type="button" data-ask-article="${esc(article.id)}">Ask ↗</button><button type="button" class="${saved?'is-saved':''}" aria-pressed="${saved}" data-save-article="${esc(article.id)}">${saved?'♥ Saved':'♡ Save'}</button><a target="_blank" rel="noopener noreferrer" href="${esc(safeUrl)}" data-read-article="${esc(article.id)}">Original ↗</a></div></article>`;
     }).join('');
     host.querySelectorAll('[data-ask-article]').forEach(button => button.addEventListener('click', () => {
       currentArticle = button.dataset.askArticle;
       const input = document.getElementById('curiosityQuestion');
       input.value = `Help me understand this research: ${button.closest('.research-entry').querySelector('h4').textContent}. `;
+      activateCuriosityTab('ask');
       input.focus();
-      document.getElementById('curiosityQuestionForm').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth', block:'center'});
     }));
     host.querySelectorAll('[data-save-article]').forEach(button => button.addEventListener('click', async () => {
-      if (!hasLogin()) { loginNudge(document.getElementById('curiosityAskStatus')); return; }
+      if (!hasLogin()) { activateCuriosityTab('ask'); loginNudge(document.getElementById('curiosityAskStatus')); return; }
       const id = button.dataset.saveArticle;
       const event = button.getAttribute('aria-pressed') === 'true' ? 'unsave' : 'save';
       try { await request(`/curiosity/articles/${encodeURIComponent(id)}/events`, {method:'POST', body:JSON.stringify({event})}); await loadArticles(); }
@@ -68,8 +81,8 @@
       toggle.checked = !!result.recommendations_enabled;
       toggle.disabled = !hasLogin();
       if (result.recommended_topics?.length) {
-        const shelf = document.querySelector('.curiosity-library .curiosity-intro');
-        shelf.textContent = `Your reading has been circling ${result.recommended_topics.join(' and ')}. Here are more original studies to explore.`;
+        const shelf = document.querySelector('.field-notes-heading>p');
+        shelf.textContent = `Your curiosity has been circling ${result.recommended_topics.join(' and ')}. Here are more original studies to explore.`;
       }
     } catch { document.getElementById('curiosityArticles').innerHTML = '<p class="curiosity-loading">The field notes could not load just now. Refresh to try again.</p>'; }
   }
@@ -85,7 +98,7 @@
   function showSolution(result) {
     const host = document.getElementById('curiositySolution');
     const status = result.verification?.status || result.solution_deck?.verification || 'unverified';
-    host.innerHTML = `<div class="solution-content"><span class="solution-label">SOLUTION DECK / ${esc(status.toUpperCase())}</span><h4>${esc(result.question || 'Let’s open this idea up.')}</h4><p>${esc(result.solution_deck?.start_here || '')}</p><p>${esc(result.solution_deck?.explanation || result.answer || '')}</p><p><strong>Try next:</strong> ${esc(result.solution_deck?.try_next || '')}</p><div class="solution-actions"><small>${status === 'verified' ? 'Reviewed answer' : 'Draft answer · check against trusted sources'}</small><span>${result.id ? `<button type="button" data-feedback="true" data-question-id="${esc(result.id)}">Helpful</button><button type="button" data-feedback="false" data-question-id="${esc(result.id)}">Needs work</button>` : ''}</span></div></div>`;
+    host.innerHTML = `<div class="solution-content"><div class="solution-label">SOLUTION DECK <span>/ ${esc(status.toUpperCase())}</span></div><h4>${esc(result.question || 'Let’s open this idea up.')}</h4><div class="solution-steps"><div><small>01 / START HERE</small><p>${esc(result.solution_deck?.start_here || '')}</p></div><div><small>02 / THE IDEA</small><p>${esc(result.solution_deck?.explanation || result.answer || '')}</p></div><div><small>03 / TRY NEXT</small><p>${esc(result.solution_deck?.try_next || '')}</p></div></div><div class="solution-actions"><small>${status === 'verified' ? 'Reviewed answer' : 'Draft answer · check against trusted sources'}</small><span>${result.id ? `<button type="button" data-feedback="true" data-question-id="${esc(result.id)}">Helpful</button><button type="button" data-feedback="false" data-question-id="${esc(result.id)}">Needs work</button>` : ''}</span></div></div>`;
     host.querySelectorAll('[data-feedback]').forEach(button => button.onclick = async () => {
       try { await request(`/curiosity/questions/${encodeURIComponent(button.dataset.questionId)}/feedback`, {method:'POST', body:JSON.stringify({helpful:button.dataset.feedback === 'true'})}); button.textContent = 'Feedback saved'; button.disabled = true; }
       catch (error) { button.textContent = error.message; }
@@ -125,7 +138,13 @@
     try {
       roomList = await request('/communities/rooms');
       select.innerHTML = roomList.map(room => `<option value="${esc(room.id)}">${esc(room.name)} · ${esc(room.topic)}</option>`).join('');
-      if (!roomList.length) { select.innerHTML = '<option value="">No circles available yet</option>'; return; }
+      if (!roomList.length) { select.innerHTML = '<option value="">No circles available yet</option>'; document.getElementById('curiosityRoomNav').innerHTML = '<span class="curiosity-loading">No teen circles are available for this account.</span>'; return; }
+      document.getElementById('curiosityRoomNav').innerHTML = roomList.map((room,index) => `<button type="button" class="room-tab ${index===0?'is-active':''}" role="tab" aria-selected="${index===0}" data-room-tab="${esc(room.id)}"><span>${String(index+1).padStart(2,'0')}</span> ${esc(room.name)}</button>`).join('');
+      document.querySelectorAll('[data-room-tab]').forEach(button => button.addEventListener('click', () => {
+        currentRoom = select.value = button.dataset.roomTab;
+        document.querySelectorAll('[data-room-tab]').forEach(tab => { const active = tab === button; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', String(active)); });
+        loadRoomMessages();
+      }));
       currentRoom = select.value = roomList[0].id;
       document.getElementById('curiosityRoomPrompt').textContent = roomList[0].prompt;
       await loadRoomMessages();
@@ -178,6 +197,21 @@
   document.getElementById('curiosityQuestionForm')?.addEventListener('submit', askQuestion);
   document.getElementById('curiosityRoomForm')?.addEventListener('submit', postToRoom);
   document.getElementById('curiosityRoomSelect')?.addEventListener('change', event => { currentRoom = event.target.value; loadRoomMessages(); });
+  document.querySelectorAll('[data-curiosity-tab]').forEach((tab,index,tabs) => {
+    tab.tabIndex = tab.classList.contains('is-active') ? 0 : -1;
+    tab.addEventListener('click', () => activateCuriosityTab(tab.dataset.curiosityTab));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+      tabs[next].focus();
+      activateCuriosityTab(tabs[next].dataset.curiosityTab);
+    });
+  });
+  document.querySelectorAll('[data-curiosity-prompt]').forEach(button => button.addEventListener('click', () => {
+    document.getElementById('curiosityQuestion').value = button.dataset.curiosityPrompt;
+    document.getElementById('curiosityQuestion').focus();
+  }));
   document.getElementById('curiosityRecommendations')?.addEventListener('change', async event => {
     if (!hasLogin()) { event.target.checked = false; loginNudge(document.getElementById('curiosityAskStatus')); return; }
     event.target.disabled = true;
