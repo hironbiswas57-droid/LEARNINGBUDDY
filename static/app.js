@@ -1,6 +1,6 @@
 const API = '/api/v1';
 const app = document.getElementById('app');
-const state = { user: null, profile: null, page: 'home', overview: null, courses: [], goals: [], token: null, refresh: null, conversationId: null, focus: null, focusTimer: null, focusRemaining: 0, expandedCourse: null, searchTerm: '' };
+const state = { user: null, profile: null, page: new URLSearchParams(window.location.search).get('section')==='curiosity'?'curiosity':'home', overview: null, courses: [], goals: [], token: null, refresh: null, conversationId: null, focus: null, focusTimer: null, focusRemaining: 0, expandedCourse: null, searchTerm: '' };
 
 const icons = {
   home:'<svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>',

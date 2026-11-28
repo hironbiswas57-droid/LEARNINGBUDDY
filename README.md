@@ -17,7 +17,6 @@ The live prototype link above is the existing static deployment. The full-stack 
 ### Public landing experience
 
 - Responsive illustrated LearnMate homepage with pointer and scroll motion, reduced-motion support, learning subject showcases, communities, Skill Studio, Idea Lab, and a front-end buddy preview.
-- Curiosity research shelf seeded from peer-reviewed studies, with source links, reading and save history, an AI question box, and a step-by-step solution deck.
 - A dedicated **Curiosity** tab in the signed-in workspace, with a research shelf, saved question history, solution deck, and teen study-circle chat connected to the same API and SQLite records.
 - Teen study-circle chat with persistent posts, reporting, contact-detail holds, and account/age checks. Posts are visible to signed-in teen learners.
 - Reading and answer-feedback topic suggestions are opt-in and use only the learner's own activity. Questions and answers are stored in that learner's account; they are not used to train a shared model.
@@ -30,6 +29,7 @@ The live prototype link above is the existing static deployment. The full-stack 
 - Personalized learner overview, course catalog, enrollment, lessons, and saved lesson progress.
 - Daily goals, focus sessions, weekly activity summary, profile, and AI study buddy.
 - Curiosity articles, saved/read events, recommendation preferences, question history and solution decks, teen-only room messages, and message reports stored in SQLite.
+- A dedicated Curiosity workspace opened directly from the landing page, with a research shelf, question-to-solution flow, and teen study-circle chat.
 - Local mock tutor works without API credentials. Answers are marked **unverified** unless a configured reviewer approves them.
 
 The ESD package also describes live classes, careers, marketplace, parent/educator tools, and other integrations as future roadmap items. The new Curiosity rooms are active API features. There is no staffed real-time moderation console in this prototype: reported posts are hidden pending review, and posts containing detected email addresses or phone-like strings are held. Do not treat automated checks as complete moderation.
