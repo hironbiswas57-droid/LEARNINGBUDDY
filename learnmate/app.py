@@ -7,13 +7,13 @@ import re
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from . import __version__
 from .config import ROOT, settings
 from .db import db, migrate
 from .seed import seed
-from .services import auth, learning
+from .services import auth, curiosity, learning
 from .services.tutor import TutorService
 
 
@@ -246,6 +246,69 @@ class Handler(BaseHTTPRequestHandler):
             user = self._user(("LEARNER",))
             self._data(_TUTOR.reply(user, str(body.get("message", "")), body.get("conversation_id")), 201)
             return
+        if method == "GET" and path == API_PREFIX + "/curiosity/articles":
+            if self.headers.get("Authorization", "").lower().startswith("bearer "):
+                user = self._user(("LEARNER",))
+                self._data(curiosity.get_articles(user))
+            else:
+                self._data({"articles": curiosity.get_public_articles(), "recommendations_enabled": False, "recommended_topics": []})
+            return
+        if method == "GET" and path == API_PREFIX + "/curiosity/preferences":
+            user = self._user(("LEARNER",))
+            self._data(curiosity.preferences(user))
+            return
+        if method == "PATCH" and path == API_PREFIX + "/curiosity/preferences":
+            user = self._user(("LEARNER",))
+            if not isinstance(body.get("recommendations_enabled"), bool):
+                raise APIError(400, "invalid_request", "recommendations_enabled must be true or false.")
+            self._data(curiosity.preferences(user, body["recommendations_enabled"]))
+            return
+        if method == "POST" and path == API_PREFIX + "/curiosity/questions":
+            user = self._user(("LEARNER",))
+            self._data(curiosity.ask(user, body, _TUTOR), 201)
+            return
+        if method == "GET" and path == API_PREFIX + "/curiosity/questions":
+            user = self._user(("LEARNER",))
+            self._data(curiosity.history(user))
+            return
+        match = re.fullmatch(re.escape(API_PREFIX) + r"/curiosity/questions/([A-Za-z0-9-]+)/feedback", path)
+        if method == "POST" and match:
+            user = self._user(("LEARNER",))
+            if not isinstance(body.get("helpful"), bool):
+                raise APIError(400, "invalid_request", "helpful must be true or false.")
+            self._data(curiosity.feedback(user, match.group(1), body["helpful"]))
+            return
+        match = re.fullmatch(re.escape(API_PREFIX) + r"/curiosity/articles/([A-Za-z0-9-]+)/events", path)
+        if method == "POST" and match:
+            user = self._user(("LEARNER",))
+            self._data(curiosity.article_event(user, match.group(1), str(body.get("event", ""))), 201)
+            return
+        if method == "GET" and path == API_PREFIX + "/communities/rooms":
+            if self.headers.get("Authorization", "").lower().startswith("bearer "):
+                user = self._user(("LEARNER",))
+                self._data(curiosity.rooms(user))
+            else:
+                self._data(curiosity.rooms())
+            return
+        match = re.fullmatch(re.escape(API_PREFIX) + r"/communities/rooms/([A-Za-z0-9-]+)/messages", path)
+        if match:
+            user = self._user(("LEARNER",))
+            if method == "GET":
+                try:
+                    limit = int(parse_qs(query).get("limit", ["60"])[0])
+                except ValueError as exc:
+                    raise APIError(400, "invalid_request", "limit must be a number.") from exc
+                self._data(curiosity.messages(user, match.group(1), limit))
+            elif method == "POST":
+                self._data(curiosity.post_message(user, match.group(1), str(body.get("body", ""))), 201)
+            else:
+                raise APIError(405, "method_not_allowed", "This method is not supported for room messages.")
+            return
+        match = re.fullmatch(re.escape(API_PREFIX) + r"/communities/messages/([A-Za-z0-9-]+)/report", path)
+        if method == "POST" and match:
+            user = self._user(("LEARNER",))
+            self._data(curiosity.report_message(user, match.group(1), str(body.get("reason", ""))), 201)
+            return
         raise APIError(404, "not_found", "This API route does not exist.")
 
 
@@ -254,6 +317,7 @@ def create_app() -> None:
         raise RuntimeError("Set JWT_SECRET before starting outside development.")
     migrate()
     seed()
+    curiosity.seed_catalog()
 
 
 def serve() -> None:

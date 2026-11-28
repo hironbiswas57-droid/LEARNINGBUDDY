@@ -22,12 +22,14 @@ flowchart LR
   Browser[LearnMate web app] --> HTTP[Versioned REST API]
   HTTP --> Auth[Identity and session service]
   HTTP --> Learning[Learner and progress service]
+  HTTP --> Curiosity[Research and teen circles]
   HTTP --> Tutor[Tutor orchestration service]
   Tutor --> Provider[Tutor provider adapter]
   Tutor --> Reviewer[Reviewer provider adapter]
   Auth --> DB[(Relational database)]
   Learning --> DB
   Tutor --> DB
+  Curiosity --> DB
   HTTP --> Audit[Audit and rate limit middleware]
   Learning -. future .-> Jobs[Async workers]
   Jobs -. future .-> Vector[(Vector retrieval)]
@@ -70,7 +72,7 @@ The mock tutor is deliberately not an answer verifier. The browser and API prese
 
 ## 4. Data model and ER diagram
 
-The initial migration creates normalized relational tables across all requested domains. The first app slice actively reads and writes identity, learner profiles, courses, lessons, enrollments, lesson completions, goals, study sessions, AI conversations/messages/review logs, daily activity, and audit records. Remaining domain tables are groundwork and do not yet have public workflows.
+The initial migration creates normalized relational tables across all requested domains. The app actively reads and writes identity, learner profiles, courses, lessons, enrollments, lesson completions, goals, study sessions, AI conversations/messages/review logs, daily activity, audit records, research articles and per-learner reading events/preferences, curiosity question/solution history, and teen room messages/reports. Other ESD domain tables remain groundwork without public workflows.
 
 ```mermaid
 erDiagram
@@ -89,6 +91,14 @@ erDiagram
   USERS ||--o{ AI_CONVERSATIONS : owns
   AI_CONVERSATIONS ||--o{ AI_MESSAGES : contains
   AI_MESSAGES ||--o{ AI_VERIFICATION_LOGS : reviewed_by
+  USERS ||--o| CURIOSITY_PREFERENCES : configures
+  USERS ||--o{ RESEARCH_ARTICLE_EVENTS : reads_or_saves
+  RESEARCH_ARTICLES ||--o{ RESEARCH_ARTICLE_EVENTS : tracks
+  USERS ||--o{ CURIOSITY_QUESTIONS : asks
+  RESEARCH_ARTICLES ||--o{ CURIOSITY_QUESTIONS : inspires
+  CURIOSITY_ROOMS ||--o{ CURIOSITY_ROOM_MESSAGES : hosts
+  USERS ||--o{ CURIOSITY_ROOM_MESSAGES : writes
+  CURIOSITY_ROOM_MESSAGES ||--o{ CURIOSITY_MESSAGE_REPORTS : reported
   ASSESSMENTS ||--o{ QUESTIONS : contains
   USERS ||--o{ QUIZ_ATTEMPTS : takes
   ASSESSMENTS ||--o{ QUIZ_ATTEMPTS : attempted
@@ -107,7 +117,7 @@ erDiagram
   USERS ||--o{ AUDIT_LOGS : acts
 ```
 
-`migrations/001_initial.sql` defines foreign keys, cascade behavior for user-owned records, uniqueness constraints, role/state checks, and indexes for sessions, goals, conversations, and audit lookup. Data retention and deletion workers are not yet implemented; define them before production use.
+`migrations/001_initial.sql` and `migrations/002_curiosity.sql` define foreign keys, cascade behavior for user-owned records, uniqueness constraints, role/state checks, and indexes for sessions, goals, conversations, reading events, curiosity history, room messages, and audit lookup. Curiosity question text and generated answers are retained against the learner account. Data retention and deletion workflows are not yet implemented; define them before production use.
 
 ## 5. Authentication and permission matrix
 
@@ -116,11 +126,15 @@ erDiagram
 | Public registration | Yes | Not yet | No | No | No | No |
 | Read own learner profile | Yes | No | No | No | No | Operational access only |
 | Own courses, goals, focus, tutor | Yes | No | No | No | No | Operational access only |
+| Curiosity questions and preferences | Own records | No | No | No | No | Operational access only |
+| Teen room messages | Teen accounts only; visible to signed-in teen learners | No | No | No | No | Operational access only |
 | Link child / grant consent | Not yet | Not yet | — | — | — | Not yet |
 | Manage classes / assignments | — | — | Not yet | — | — | Not yet |
 | Moderate reports | — | — | — | — | Not yet | Not yet |
 
 Role escalation is blocked at public registration. Educator, mentor, moderator, and admin accounts require an administrative provisioning path that is not part of this MVP. Each implemented learner resource is scoped to the authenticated learner ID. Public signup blocks toddler and child age brackets until consent is available. This is a conservative product gate, not a complete child privacy workflow.
+
+The Curiosity community's age gate uses the account's self-selected teen/adult bracket and is not identity- or age-verified. Reported posts are hidden from other learners; messages containing detected email addresses or phone-like strings are held from the room. This is a basic quarantine, not a moderation queue or staffed response workflow. The preference toggle for recommendations starts off; enabled suggestions use that same learner's article activity and article-specific answer feedback. No cross-user profiling or shared-model training is implemented.
 
 Access tokens are short-lived and signed. Refresh tokens are stored only as SHA-256 digests in `sessions`, rotated on use, and revoked on sign-out. The browser keeps tokens in `sessionStorage`. The app uses local HTTP for development; a deployment must terminate TLS in front of it.
 
@@ -147,13 +161,21 @@ Base path: `/api/v1`. Responses use `{ "data": ..., "meta": ... }`; errors use `
 | POST | `/focus/sessions` | Learner | Implemented |
 | PATCH | `/focus/sessions/{session_id}` | Session owner | Implemented |
 | POST | `/ai/tutor/messages` | Learner | Implemented; verification status included |
-| `/guardians`, `/educators`, `/subjects`, `/assessments`, `/quizzes`, `/challenges`, `/communities`, `/messages`, `/live-sessions`, `/transcripts`, `/certificates`, `/career`, `/marketplace`, `/notifications` | Role/resource policies | Planned |
+| GET | `/curiosity/articles` | Public; saved state when signed in | Implemented; catalog seeded from cited research |
+| POST | `/curiosity/articles/{article_id}/events` | Learner | Implemented; view/save/unsave |
+| GET, PATCH | `/curiosity/preferences` | Learner | Implemented; personal recommendations default off |
+| GET, POST | `/curiosity/questions` | Learner | Implemented; asks, history, and solution deck |
+| POST | `/curiosity/questions/{question_id}/feedback` | Question owner | Implemented |
+| GET | `/communities/rooms` | Public; age-filtered when signed in | Implemented |
+| GET, POST | `/communities/rooms/{room_id}/messages` | Age-eligible learner | Implemented; persisted room conversation |
+| POST | `/communities/messages/{message_id}/report` | Signed-in learner | Implemented; hides post pending review |
+| `/guardians`, `/educators`, `/subjects`, `/assessments`, `/quizzes`, `/challenges`, `/live-sessions`, `/transcripts`, `/certificates`, `/career`, `/marketplace`, `/notifications` | Role/resource policies | Planned |
 
 Validation, request size limits, JSON envelopes, and per-client rate limiting are in the HTTP adapter. Cursor pagination, filtering/sorting conventions, idempotency keys for payment-like actions, OpenAPI generation, and granular resource policy middleware remain to be added before a larger catalog or multi-service deployment.
 
 ## 7. Real-time event contract (planned)
 
-No WebSocket server is enabled in this version. The next gateway should authenticate the same signed session at connection time and validate room membership and age restrictions on every event. Proposed names from the prompt:
+The Curiosity chat currently reloads messages through ordinary API requests; no WebSocket server or live-presence signal is enabled. A future gateway should authenticate the same signed session at connection time and validate room eligibility and moderation state on every event. Proposed names from the prompt:
 
 | Event | Direction | Authorization check |
 |---|---|---|
@@ -193,7 +215,7 @@ The app reads `.env` or process environment values. `.env.example` documents the
 | 1. Foundation | Auth, profile preferences, RBAC checks, relational migration, core API | Core local slice shipped; consent and recovery are open |
 | 2. Learning core | Tutor/reviewer adapters, catalog, lessons, progress | Basic tutor flow and lesson progress shipped; RAG and assessments open |
 | 3. Engagement | Daily goals, focus history, streak and achievements | Goals and focus records shipped; challenge scheduler and streak automation open |
-| 4. Collaboration | Communities, safe messaging, Meet/Zoom | Schema groundwork only |
+| 4. Collaboration | Communities, safe messaging, Meet/Zoom | Teen Curiosity rooms, message reports, and quarantine are implemented; staffed moderation, WebSockets, and video integrations remain open |
 | 5. Automation | Transcripts, summaries, notes, RAG | Planned |
 | 6. Professional ecosystem | Skills, projects, certificates, job simulations | Schema groundwork only |
 | 7. Marketplace and analytics | Listings, payments, advanced reporting | Schema groundwork only |

@@ -17,7 +17,10 @@ The live prototype link above is the existing static deployment. The full-stack 
 ### Public landing experience
 
 - Responsive illustrated LearnMate homepage with pointer and scroll motion, reduced-motion support, learning subject showcases, communities, Skill Studio, Idea Lab, and a front-end buddy preview.
-- Community join controls, practice progress, thought wall, and the landing-page chat are browser-side demonstrations.
+- Curiosity research shelf seeded from peer-reviewed studies, with source links, reading and save history, an AI question box, and a step-by-step solution deck.
+- Teen study-circle chat with persistent posts, reporting, contact-detail holds, and account/age checks. Posts are visible to signed-in teen learners.
+- Reading and answer-feedback topic suggestions are opt-in and use only the learner's own activity. Questions and answers are stored in that learner's account; they are not used to train a shared model.
+- Existing community join controls, practice progress, thought wall, and the original landing-page chat remain browser-side demonstrations.
 - Sign-in and account-creation links open the connected workspace without removing the landing experience.
 
 ### Connected learner workspace
@@ -25,9 +28,10 @@ The live prototype link above is the existing static deployment. The full-stack 
 - Learner registration and sign-in with access and rotating refresh tokens.
 - Personalized learner overview, course catalog, enrollment, lessons, and saved lesson progress.
 - Daily goals, focus sessions, weekly activity summary, profile, and AI study buddy.
+- Curiosity articles, saved/read events, recommendation preferences, question history and solution decks, teen-only room messages, and message reports stored in SQLite.
 - Local mock tutor works without API credentials. Answers are marked **unverified** unless a configured reviewer approves them.
 
-The ESD package also describes community persistence, live classes, careers, marketplace, parent/educator tools, and other integrations as future roadmap items. They are not active API features in this version, so the landing-page community rooms remain a front-end preview.
+The ESD package also describes live classes, careers, marketplace, parent/educator tools, and other integrations as future roadmap items. The new Curiosity rooms are active API features. There is no staffed real-time moderation console in this prototype: reported posts are hidden pending review, and posts containing detected email addresses or phone-like strings are held. Do not treat automated checks as complete moderation.
 
 ## Run locally
 
@@ -63,6 +67,8 @@ Render free web services have an ephemeral filesystem and may spin down when idl
 
 Set `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, and `REVIEWER_MODEL` in a protected environment to use the OpenAI-compatible adapter. Do not commit production credentials. Until a reviewer is configured and approves an answer, the API labels it unverified.
 
+Curiosity questions and generated replies are retained in the learner's account. When an external compatible model is configured, the question is sent to that provider to generate a response. Reading and answer-feedback suggestions are off by default and can be enabled in the Curiosity section; the resulting topic summaries use only that learner's own article activity and do not update model weights or train a shared model. Curiosity rooms are restricted to teen accounts and posts are visible to signed-in teens. Avoid sharing identifying or sensitive information.
+
 ## Project structure
 
 ```text
@@ -73,6 +79,8 @@ LEARNINGBUDDY/
 ├── static/
 │   ├── index.html             Account workspace served at /workspace
 │   ├── app.js                 Workspace and API client
+│   ├── curiosity.js           Curiosity, solution deck, and room interactions
+│   ├── curiosity.css          Curiosity section styling
 │   └── styles.css             Workspace styles
 ├── docs/                      Architecture and delivery roadmap
 ├── tests/                     Supplied backend test suite
@@ -83,7 +91,7 @@ LEARNINGBUDDY/
 
 ## Prototype boundaries
 
-Authentication, learner records, courses, goals, focus sessions, and tutor conversations use the supplied backend API. Social/community functions, persistent thought saving on the landing page, and its demo chat are still browser-only. The service is a single-node MVP using SQLite and in-memory rate limiting, not a horizontally scaled production system.
+Authentication, learner records, courses, goals, focus sessions, tutor conversations, and the new Curiosity features use the backend API. The older homepage community controls, persistent thought saving, and its demo chat are still browser-only. The service is a single-node MVP using SQLite and in-memory rate limiting, not a horizontally scaled production system. Render's free service uses an ephemeral filesystem, so SQLite records may be lost on restart or redeploy; use persistent managed storage before collecting real learner data.
 
 ## Docker
 
