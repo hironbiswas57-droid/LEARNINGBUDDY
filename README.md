@@ -18,6 +18,7 @@ The live prototype link above is the existing static deployment. The full-stack 
 
 - Responsive illustrated LearnMate homepage with pointer and scroll motion, reduced-motion support, learning subject showcases, communities, Skill Studio, Idea Lab, and a front-end buddy preview.
 - Curiosity research shelf seeded from peer-reviewed studies, with source links, reading and save history, an AI question box, and a step-by-step solution deck.
+- A dedicated **Curiosity** tab in the signed-in workspace, with a research shelf, saved question history, solution deck, and teen study-circle chat connected to the same API and SQLite records.
 - Teen study-circle chat with persistent posts, reporting, contact-detail holds, and account/age checks. Posts are visible to signed-in teen learners.
 - Reading and answer-feedback topic suggestions are opt-in and use only the learner's own activity. Questions and answers are stored in that learner's account; they are not used to train a shared model.
 - Existing community join controls, practice progress, thought wall, and the original landing-page chat remain browser-side demonstrations.
@@ -81,6 +82,8 @@ LEARNINGBUDDY/
 │   ├── app.js                 Workspace and API client
 │   ├── curiosity.js           Curiosity, solution deck, and room interactions
 │   ├── curiosity.css          Curiosity section styling
+│   ├── curiosity-page.js      Signed-in Curiosity workspace interactions
+│   └── curiosity-page.css     Dedicated Curiosity workspace design
 │   └── styles.css             Workspace styles
 ├── docs/                      Architecture and delivery roadmap
 ├── tests/                     Supplied backend test suite
